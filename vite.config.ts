@@ -22,7 +22,7 @@ export default defineConfig(({ mode }) => {
           rewrite: () => '/',
           secure: true,
         },
-        '/__continuum_prestocks': {
+        '/api/prestocks': {
           target: 'https://prestocks.com',
           changeOrigin: true,
           rewrite: () => '/api/prestocks',

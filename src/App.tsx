@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+
 import {
   Asset,
   CorporateAction,
@@ -11,6 +12,7 @@ import {
   Multiplier,
 } from './api'
 import { listPreStocks, matchPreStockPositions, type PreStockPosition } from './prestocks'
+
 import type { SolanaProvider } from './vite-env'
 
 type Holding = {
@@ -137,9 +139,6 @@ const DEMO_ACTIONS = [
 ] as CorporateAction[]
 
 
-function provider(): SolanaProvider | null {
-  return window.phantom?.solana ?? window.solflare ?? window.solana ?? null
-}
 
 function short(value: string) { return `${value.slice(0, 4)}…${value.slice(-4)}` }
 function money(value: number) { return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(value) }
@@ -211,7 +210,11 @@ function Mark({ symbol }: { symbol: string }) {
   return <div className="asset-mark">{symbol.replace(/x$/i, '').slice(0, 1)}</div>
 }
 
-export default function App() {
+function provider(): SolanaProvider | null {
+  return window.phantom?.solana ?? window.solflare ?? window.solana ?? null
+}
+
+function App() {
   const [view, setView] = useState<View>('portfolio')
   const [wallet, setWallet] = useState<string | null>(null)
   const [holdings, setHoldings] = useState<Holding[]>([])
@@ -242,20 +245,40 @@ export default function App() {
 
   async function connect() {
     setError('')
-    const p = provider()
-    if (!p) {
-      setError('No Solana wallet detected. Install Phantom or Solflare, then reload this page.')
-      return
-    }
     try {
-      const result = await p.connect()
-      setWallet(result.publicKey.toString())
-    } catch (e) { setError(e instanceof Error ? e.message : 'Wallet connection failed') }
+      const p = provider()
+      if (!p) {
+        setError('No Solana wallet detected. Install or open Phantom.')
+        return
+      }
+      const response = await p.connect()
+      const address =
+        response?.publicKey?.toString?.() ??
+        p.publicKey?.toString?.() ??
+        null
+      if (!address) {
+        setError('Wallet connected but no public key was returned.')
+        return
+      }
+      setWallet(address)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Wallet connection failed')
+    }
   }
 
   async function disconnect() {
-    try { await provider()?.disconnect() } catch { /* wallet may already be disconnected */ }
-    setWallet(null); setHoldings([]); setActions([]); setPreStockPositions([]); setSelected(null)
+    setError('')
+    try {
+      const p = provider()
+      if (p?.disconnect) await p.disconnect()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Wallet disconnect failed')
+    }
+    setWallet(null)
+    setHoldings([])
+    setActions([])
+    setPreStockPositions([])
+    setSelected(null)
   }
 
   useEffect(() => {
@@ -746,3 +769,5 @@ function actionCopy(a: CorporateAction) {
   if (type.includes('token2022')) return 'The Token-2022 multiplier changes the effective position while the raw token balance remains directly traceable.'
   return a.notes ?? 'Corporate action recorded by xStocks.'
 }
+
+export default App
