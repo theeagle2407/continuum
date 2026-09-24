@@ -292,20 +292,20 @@ function App() {
     async function load() {
       setLoading(true); setError('')
       try {
-        const [assets, tokenAccounts, preStocks] = await Promise.all([
-          listSolanaAssets(),
-          getToken2022Accounts(wallet!),
-          listPreStocks(),
-        ])
-
+        const [assetsResult, tokenAccountsResult, preStocksResult] = await Promise.allSettled([listSolanaAssets(), getToken2022Accounts(wallet!), listPreStocks()])
+        const assets = assetsResult.status === 'fulfilled' ? assetsResult.value : []
+        const tokenAccounts = tokenAccountsResult.status === 'fulfilled' ? tokenAccountsResult.value : []
+        const preStocks = preStocksResult.status === 'fulfilled' ? preStocksResult.value : []
         const preStockMultipliers = new Map<string, number>()
-
         for (const preStock of preStocks) {
-          const multiplier = await getToken2022ScaledMultiplier(preStock.contract_address)
-          preStockMultipliers.set(preStock.contract_address, multiplier)
+          try {
+            const multiplier = await getToken2022ScaledMultiplier(preStock.contract_address)
+            preStockMultipliers.set(preStock.contract_address, multiplier)
+          } catch (e) {
+            console.warn('PreStocks multiplier unavailable:', e)
+          }
         }
-
-        const matchedPreStocks = matchPreStockPositions(
+const matchedPreStocks = matchPreStockPositions(
           preStocks,
           tokenAccounts,
           preStockMultipliers,
@@ -364,7 +364,7 @@ function App() {
         )
         if (!cancelled) setActions(allActions.flat().sort((a, b) => new Date(b.effectiveTimeUtc ?? b.createdTimeUtc).getTime() - new Date(a.effectiveTimeUtc ?? a.createdTimeUtc).getTime()))
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'Could not load the portfolio')
+        console.warn('Portfolio refresh encountered an unexpected error:', e)
       } finally { if (!cancelled) setLoading(false) }
     }
     load()
